@@ -39,10 +39,12 @@ export default function Message({ message }) {
             >
               {message.content}
             </ReactMarkdown>
-          ) : (
+          ) : message.status === 'streaming' ? (
             <span className="thinking">
               Thinking<span>···</span>
             </span>
+          ) : (
+            <span className="incomplete">No response text was received.</span>
           )}
           {message.status === 'streaming' && message.content && <span className="stream-cursor" />}
         </div>

@@ -1153,3 +1153,33 @@ h1 em {
     padding: 6px;
   }
 }
+@media (min-width: 761px) and (max-width: 1100px) {
+  .welcome {
+    padding-top: 22px;
+    padding-bottom: 14px;
+  }
+  .welcome-symbol {
+    width: 50px;
+    height: 50px;
+    border-radius: 17px;
+    margin: 16px auto;
+  }
+  .welcome-symbol svg {
+    width: 30px;
+  }
+  h1 {
+    font-size: 36px;
+  }
+  .intro-copy {
+    margin: 12px 0 20px;
+  }
+  .starter {
+    padding: 14px;
+  }
+  .starter-top {
+    margin-bottom: 13px;
+  }
+  .welcome-footnote {
+    margin-top: 17px;
+  }
+}

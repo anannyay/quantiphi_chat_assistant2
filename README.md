@@ -17,6 +17,15 @@ A thoughtfully designed AI chat workspace with real streaming, persistent conver
 
 </div>
 
+![Cadence desktop workspace](docs/screenshots/workspace.png)
+
+<details>
+<summary>See the mobile experience</summary>
+
+<img src="docs/screenshots/mobile.png" alt="Cadence on a mobile screen, with a collapsible sidebar and fixed message composer" width="320" />
+
+</details>
+
 ## What it does
 
 - **Streams answers as they arrive** from OpenAI, with a cancel button that also aborts the upstream request.
