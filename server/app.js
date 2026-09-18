@@ -41,11 +41,18 @@ export function createApp({ repository, provider, mode, model }) {
   }
   app.get('/api/conversations/:id', async (req, res) => res.json(await find(req.params.id)));
   app.delete('/api/conversations/:id', async (req, res) => {
-    await find(req.params.id);
+    idSchema.parse(req.params.id);
     if (active.has(req.params.id))
       throw new HttpError(409, 'Stop the response before deleting this conversation.');
-    await repository.delete(req.params.id);
-    res.status(204).end();
+    // Deletion shares the same lock: an asynchronous delete cannot race a new stream.
+    active.add(req.params.id);
+    try {
+      await find(req.params.id);
+      await repository.delete(req.params.id);
+      res.status(204).end();
+    } finally {
+      active.delete(req.params.id);
+    }
   });
   app.post('/api/conversations/:id/messages', async (req, res) => {
     const { prompt, tone } = messageSchema.parse(req.body);
@@ -115,19 +122,23 @@ export function createApp({ repository, provider, mode, model }) {
       await repository.save(conversation); // A done event guarantees durable persistence.
       emit('done', { message: assistant });
     } catch (error) {
+      let partialSaved = false;
       if (assistant) {
         assistant.status = controller.signal.aborted ? 'interrupted' : 'error';
         try {
           await repository.save(conversation);
+          partialSaved = true;
         } catch {
           console.error('Failed to persist interrupted response');
         }
       }
       if (!res.headersSent) throw error;
       emit('error', {
-        error: controller.signal.aborted
-          ? 'Response stopped or timed out. Partial text was saved.'
-          : 'Could not complete the response. Check the connection or API configuration and try again.',
+        error: !partialSaved
+          ? 'The response could not be saved. Check the database connection before retrying.'
+          : controller.signal.aborted
+            ? 'Response stopped or timed out. Partial text was saved.'
+            : 'Could not complete the response. Check the connection or API configuration and try again.',
       });
     } finally {
       clearTimeout(timeout);
@@ -141,16 +152,14 @@ export function createApp({ repository, provider, mode, model }) {
   app.use((error, _req, res, _next) => {
     if (res.headersSent) return res.end();
     const status = error instanceof ZodError ? 400 : error.status || 500;
-    res
-      .status(status)
-      .json({
-        error:
-          error instanceof ZodError
-            ? 'Invalid request. Use a valid tone and a prompt between 1 and 8,000 characters.'
-            : status < 500
-              ? error.message
-              : 'Something went wrong. Please try again.',
-      });
+    res.status(status).json({
+      error:
+        error instanceof ZodError
+          ? 'Invalid request. Use a valid tone and a prompt between 1 and 8,000 characters.'
+          : status < 500
+            ? error.message
+            : 'Something went wrong. Please try again.',
+    });
   });
   return app;
 }

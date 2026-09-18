@@ -81,6 +81,13 @@ export default function App() {
     follow = useRef(true),
     sending = useRef(false);
   const selection = useRef(0);
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 760px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const update = () => setMobile(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   // Keep dialog focus inside the modal and restore it when the dialog closes.
   useEffect(() => {
     if (!help && !deleteTarget) return;
@@ -248,7 +255,17 @@ export default function App() {
           onClick={() => setSidebar(false)}
         />
       )}
-      <aside className={`sidebar ${sidebar ? 'open' : ''}`}>
+      <aside
+        className={`sidebar ${sidebar ? 'open' : ''}`}
+        inert={(mobile && !sidebar) || help || !!deleteTarget}
+      >
+        <button
+          className="drawer-close"
+          aria-label="Close history drawer"
+          onClick={() => setSidebar(false)}
+        >
+          <X size={18} />
+        </button>
         <a className="brand" href="/" aria-label="Cadence home">
           <span className="brand-mark">
             <AudioLines size={24} />
@@ -325,7 +342,7 @@ export default function App() {
           </div>
         </div>
       </aside>
-      <main>
+      <main inert={(mobile && sidebar) || help || !!deleteTarget}>
         <header className="topbar">
           <div className="breadcrumb">
             <button

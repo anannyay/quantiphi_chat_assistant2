@@ -7,6 +7,7 @@ import request from 'supertest';
 import { createApp } from '../server/app.js';
 import { FileRepository } from '../server/repository.js';
 import { OpenAIProvider } from '../server/provider.js';
+import { setTimeout as delay } from 'node:timers/promises';
 
 async function fixture(
   t,
@@ -178,4 +179,57 @@ test('OpenAI adapter rejects upstream stream truncation', async () => {
       assert.equal(chunk, 'Partial');
     }
   }, /before completion/);
+});
+
+test('disconnect cancels the provider and persists interrupted text', async (t) => {
+  let signalSeen;
+  const { app, repository, conversation } = await fixture(t, {
+    async *stream(_messages, _tone, signal) {
+      signalSeen = signal;
+      yield 'Partial answer';
+      await delay(5000, undefined, { signal });
+    },
+  });
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const controller = new AbortController();
+  const response = await fetch(
+    `http://127.0.0.1:${server.address().port}/api/conversations/${conversation.id}/messages`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Hello', tone: 'casual' }),
+      signal: controller.signal,
+    },
+  );
+  const reader = response.body.getReader();
+  await reader.read();
+  controller.abort();
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const saved = await repository.get(conversation.id);
+    if (saved.messages[1]?.status === 'interrupted') break;
+    await delay(10);
+  }
+  assert.equal(signalSeen.aborted, true);
+  const saved = await repository.get(conversation.id);
+  assert.equal(saved.messages[1].status, 'interrupted');
+  assert.equal(saved.messages[1].content, 'Partial answer');
+});
+
+test('a database failure cannot emit a successful done event', async (t) => {
+  const { app, repository, conversation } = await fixture(t);
+  const originalSave = repository.save.bind(repository);
+  let writes = 0;
+  repository.save = async (record) => {
+    writes++;
+    if (writes > 1) throw new Error('Database offline');
+    return originalSave(record);
+  };
+  const response = await request(app)
+    .post(`/api/conversations/${conversation.id}/messages`)
+    .send({ prompt: 'Hi', tone: 'concise' })
+    .expect(200);
+  assert.doesNotMatch(response.text, /"type":"done"/);
+  assert.match(response.text, /could not be saved/);
 });

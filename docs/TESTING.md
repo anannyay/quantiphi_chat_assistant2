@@ -10,7 +10,7 @@ docker compose up -d
 npm run test:mongo
 ```
 
-The standard suite has 13 tests covering:
+The standard suite has 15 tests covering:
 
 - Distinct server-owned tone instructions and rejection of unsupported tones.
 - Empty/oversized prompts and attempted extra instruction fields.
@@ -22,6 +22,8 @@ The standard suite has 13 tests covering:
 - Missing conversation, deletion, and generation/deletion conflicts.
 - Actual OpenAI request construction with a stubbed SDK boundary.
 - Rejection of upstream truncation.
+- Browser disconnect cancellation and interrupted-response persistence.
+- No successful completion event when the final database write fails.
 
 The separate MongoDB integration suite creates a uniquely named test database, validates round-trip persistence and indexes, then drops only that test database. Use `TEST_MONGODB_URI` to override its default connection.
 
